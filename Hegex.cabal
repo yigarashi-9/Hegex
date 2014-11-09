@@ -1,0 +1,29 @@
+Name:           Hegex
+Version:        1.0
+Cabal-Version:  >= 1.14
+Build-Type:     Simple
+
+Library
+  Default-Language:     Haskell2010
+  GHC-Options:          -Wall
+  Hs-Source-Dirs:       src
+  Exposed-Modules:      Hegex.Tree
+                      ,	Hegex.Type
+                      , Hegex.NFA
+  Build-Depends:        base >= 4 && < 5
+                      , containers
+                      , mtl
+                      
+
+Test-Suite spec
+  Type:                 exitcode-stdio-1.0
+  Default-Language:     Haskell2010
+  Hs-Source-Dirs:       test
+  Ghc-Options:          -Wall
+  Main-Is:              Spec.hs
+  Other-Modules:        Hegex.TreeSpec
+                      , Hegex.NFASpec
+  Build-Depends:        base
+                      , hspec >= 1.3
+                      , Hegex
+                      , containers
