@@ -20,7 +20,7 @@ type Range       = (Int, Int)
 
 data NFA = NFA { initialN :: StateNumber,
                  transitionN :: TransitionN,
-                 acceptN :: StateNumber
+                 acceptN :: [StateNumber]
                } deriving(Eq, Show)
 
 type TransitionD = Map.Map (Char, StateNumber) StateNumber

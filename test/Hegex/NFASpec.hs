@@ -26,7 +26,7 @@ spec = do
                                                         (7,Map.fromList [(Just 'c',[8])]),
                                                         (8,Map.fromList [(Nothing,[10])]),
                                                         (9,Map.fromList [(Nothing,[3,5])])],
-                            acceptN     = 10}
+                            acceptN     = [10]}
 
 main :: IO ()
 main = hspec spec

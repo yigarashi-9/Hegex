@@ -12,7 +12,7 @@ insertArrows begin char ends trans
     where function map' = Just $ Map.insertWith (++) char ends map'
 
 assemble :: Tree -> NFA
-assemble tree = NFA beg trans end
+assemble tree = NFA beg trans [end]
     where ((beg, end), (_, trans)) = runState (branch tree) (0, Map.empty)
 
 branch :: Tree -> State Searcher Range
