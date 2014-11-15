@@ -5,7 +5,7 @@ import           Hegex.Type
 import           Control.Monad.State
 import qualified Data.Map            as Map
 
-insertArrows :: StateNumber -> Maybe Char -> [StateNumber] -> TransitionN -> TransitionN
+insertArrows :: StateNumber -> Maybe Char -> [StateNumber] -> NFATrans -> NFATrans
 insertArrows begin char ends trans
     | Nothing <- Map.lookup begin trans = Map.insert begin (Map.singleton char ends) trans
     | otherwise = Map.update function begin trans

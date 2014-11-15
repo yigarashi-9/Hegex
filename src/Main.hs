@@ -1,23 +1,23 @@
 
--- module Main ( match ) where
-
 import Hegex.Type
 import Hegex.Tree
 import Hegex.NFA
-import Data.List
+import Hegex.DFA
 import System.Environment
 
 main :: IO ()
 main = do
-  (str:_) <- getArgs
-  print (assemble . buildTree $ str)
+  (str1:str2:_) <- getArgs
+  print (simulate (convert . assemble . buildTree $ str1) str2)
 
--- match :: Pattern -> String -> Bool
--- match pat str = compile pat $ str
+makeTree :: String -> Tree
+makeTree = buildTree
 
--- compile :: Pattern -> DFA
--- compile = convert . interpret . analyze . tokenize
-
--- interpret :: Tree -> NFA
-
--- convert :: NFA -> DFA
+makeENFA :: String -> ENFA
+makeENFA = assemble . buildTree
+         
+makeNFA :: String -> NFA
+makeNFA = enfa2nfa . assemble . buildTree
+         
+makeDFA :: String -> DFA
+makeDFA = convert . assemble . buildTree
