@@ -34,6 +34,9 @@ matchAll pat str = foldr match [] (concat . map tail . map inits . init . tails 
           | otherwise = acc
 
 -- Correctness of your nfa is not checked.
--- Please use this with care.
+-- Please use these with care.
 getMatcherWithNFA :: NFA -> (String -> Bool)
 getMatcherWithNFA = simulate . convert
+
+getMatcherWithDFA :: StateNumber -> DFATrans -> Accepts -> (String -> Bool)
+getMatcherWithDFA initn dfatrans acc = simulate (DFA initn dfatrans acc)
