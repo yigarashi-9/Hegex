@@ -4,15 +4,12 @@ module Hegex.NFA ( assemble ) where
 import           Hegex.Type
 import           Control.Monad.State
 import qualified Data.Map            as Map
-
-insertArrows :: StateNumber -> Maybe Char -> [StateNumber] -> NFATrans -> NFATrans
-insertArrows begin char ends trans
-    | Nothing <- Map.lookup begin trans = Map.insert begin (Map.singleton char ends) trans
-    | otherwise = Map.update function begin trans
-    where function map' = Just $ Map.insertWith (++) char ends map'
+import qualified Data.Set            as Set
 
 assemble :: Tree -> NFA
-assemble tree = NFA beg trans [end]
+assemble tree = NFA { nfaInit   = beg,
+                      nfaTrans  = trans,
+                      nfaAccept = Set.singleton end }
     where ((beg, end), (_, trans)) = runState (branch tree) (0, Map.empty)
 
 branch :: Tree -> State Searcher Range
@@ -59,3 +56,9 @@ assembleUnion tr1 tr2 = do
                  insertArrows e2 Nothing [newEnd] $ trans
   put (newEnd, newTrans)
   return (newBeg, newEnd)
+
+insertArrows :: StateNumber -> Maybe Char -> [StateNumber] -> NFATrans -> NFATrans
+insertArrows begin char ends trans
+    | Nothing <- Map.lookup begin trans = Map.insert begin (Map.singleton char ends) trans
+    | otherwise = Map.update function begin trans
+    where function map' = Just $ Map.insertWith (++) char ends map'

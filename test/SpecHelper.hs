@@ -14,5 +14,3 @@ import Hegex.NFA
 import Hegex.DFA
 import Hegex.Type
 import Control.Exception
-
--- なんかディレクトリ構成がおかしいっぽいから確認して

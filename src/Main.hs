@@ -1,4 +1,6 @@
 
+module Main where 
+
 import Hegex.Type
 import Hegex.Tree
 import Hegex.NFA

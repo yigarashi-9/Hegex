@@ -9,7 +9,7 @@ import qualified Data.Set   as Set
 simulate :: DFA -> String -> Bool
 simulate (DFA init trans accept) str = loop init str
     where
-      loop state []     = state `elem` accept
+      loop state []     = Set.member state accept 
       loop state (c:cs) = case Map.lookup (c, state) trans of
                              Just next -> loop next cs
                              Nothing   -> False
@@ -21,19 +21,21 @@ convert :: ENFA -> DFA
 convert = nfa2dfa . enfa2nfa
 
 nfa2dfa :: NFA -> DFA
-nfa2dfa nfa = DFA 0 (trans dfaMaker) (makeDFAaccepts nfa dfaMaker)
-    where start    = Set.singleton $ nfaInit nfa
-          dfaMaker = deleteNondetermin nfa
-                                       (DFAMaker (Map.singleton start 0) 0 Map.empty)
-                                       [nfaInit nfa]
+nfa2dfa nfa = DFA { dfaInit   = 0,
+                    dfaTrans  = dfamTrans dfaMakerRes,
+                    dfaAccept = getAcceptList nfa dfaMakerRes }
+    where
+      dfaMakerInit = DFAMaker { subsetIndexer = Map.singleton (Set.singleton $ nfaInit nfa) 0,
+                                dfamCounter   = 0,
+                                dfamTrans     = Map.empty }
+      dfaMakerRes  = deleteNondetermin nfa dfaMakerInit [nfaInit nfa]
 
-makeDFAaccepts :: NFA -> DFAMaker -> [StateNumber]
-makeDFAaccepts nfa dfaMaker = foldr includeAcc [] dests
-    where dests  = Map.assocs (stateSets dfaMaker)
-          accset = Set.fromList $ nfaAccept nfa
-          includeAcc (set, num) acc = if Set.null $ Set.intersection set accset
-                                      then acc
-                                      else num:acc
+
+getAcceptList :: NFA -> DFAMaker -> Accepts
+getAcceptList nfa dfaMaker = Set.fromList [ i | (subset, i) <- subsetIndices, isAccepted subset ]
+    where
+      subsetIndices     = Map.assocs (subsetIndexer dfaMaker)
+      isAccepted subset = not . Set.null $ Set.intersection (nfaAccept nfa) subset
                                            
 
 deleteNondetermin :: NFA -> DFAMaker -> [StateNumber]-> DFAMaker
@@ -61,23 +63,26 @@ connectAdjacent translist dfaMaker starts = foldl step dfaMaker translist
           where num = lookupFromlist dfaMaker dests
 
 lookupFromlist :: DFAMaker -> [StateNumber] -> StateNumber
-lookupFromlist dfaMaker state = Map.findWithDefault notExist (Set.fromList state) (stateSets dfaMaker)
+lookupFromlist dfaMaker state = Map.findWithDefault notExist
+                                                    (Set.fromList state)
+                                                    (subsetIndexer dfaMaker)
 
 enfa2nfa :: ENFA -> NFA
-enfa2nfa nfa@(NFA init trans accept) = deleteEpsilonTrans nfa init (NFA init Map.empty [])
+enfa2nfa nfa@(NFA init trans accept) = deleteEpsilonTrans nfa init (NFA init Map.empty Set.empty)
 
 deleteEpsilonTrans :: NFA -> StateNumber -> NFA -> NFA
-deleteEpsilonTrans nfa@(NFA init trans (accept:_)) start nfaAcc@(NFA initAcc transAcc acceptAcc)
+deleteEpsilonTrans nfa@(NFA init trans acceptset) start nfaAcc@(NFA initAcc transAcc acceptAcc)
     = if Map.member start transAcc
       then nfaAcc
       else foldl (\acc' x -> deleteEpsilonTrans nfa x acc')
                  (NFA initAcc transAcc' acceptAcc')
                  dest
     where etrans     = collectEpsilonTrans trans start
+          accept     = head $ Set.toList acceptset
           subtrans   = unionTransition trans etrans
           dest       = concat $ Map.elems subtrans
           acceptAcc' = if accept `elem` etrans
-                       then (start:acceptAcc)
+                       then Set.insert start acceptAcc
                        else acceptAcc
           transAcc'  = if Map.null subtrans
                        then transAcc

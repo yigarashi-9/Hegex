@@ -3,7 +3,7 @@ module Hegex.NFASpec ( spec ) where
 
 import           SpecHelper
 import qualified Data.Map   as Map
-
+import qualified Data.Set   as Set
 spec :: Spec
 spec = do
   describe "build a NFA from syntax tree." $ do
@@ -26,7 +26,7 @@ spec = do
                                                         (7,Map.fromList [(Just 'c',[8])]),
                                                         (8,Map.fromList [(Nothing,[10])]),
                                                         (9,Map.fromList [(Nothing,[3,5])])],
-                            nfaAccept     = [10]}
+                            nfaAccept     = Set.fromList [10]}
 
 main :: IO ()
 main = hspec spec
