@@ -1,5 +1,5 @@
 
-module Hegex.DFA ( enfa2nfa, convert, simulate ) where
+module Hegex.DFA ( enfa2nfa, nfa2dfa, convert, simulate ) where
 
 import           Hegex.Type
 import           Data.List
@@ -42,7 +42,7 @@ deleteNondetermin :: NFA -> DFAMaker -> [StateNumber]-> DFAMaker
 deleteNondetermin nfa dfaMaker starts
     = foldl (deleteNondetermin nfa) dfaMaker' unsearched
     where
-      translist  = Map.assocs $ unionTransition (nfaTrans nfa) starts
+      translist  = Map.assocs $ unionTransition nfa starts
       dfaMaker'  = connectAdjacent translist dfaMaker starts
       unsearched = foldr filterfunc [] translist
       filterfunc (_, list) acc = if lookupFromlist dfaMaker list == notExist
@@ -68,38 +68,36 @@ lookupFromlist dfaMaker state = Map.findWithDefault notExist
                                                     (subsetIndexer dfaMaker)
 
 enfa2nfa :: ENFA -> NFA
-enfa2nfa nfa@(NFA init trans accept) = deleteEpsilonTrans nfa init (NFA init Map.empty Set.empty)
+enfa2nfa nfa = deleteEpsilonTrans nfa (NFA (nfaInit nfa) Map.empty Set.empty) (nfaInit nfa)
 
-deleteEpsilonTrans :: NFA -> StateNumber -> NFA -> NFA
-deleteEpsilonTrans nfa@(NFA init trans acceptset) start nfaAcc@(NFA initAcc transAcc acceptAcc)
-    = if Map.member start transAcc
-      then nfaAcc
-      else foldl (\acc' x -> deleteEpsilonTrans nfa x acc')
-                 (NFA initAcc transAcc' acceptAcc')
-                 dest
-    where etrans     = collectEpsilonTrans trans start
-          accept     = head $ Set.toList acceptset
-          subtrans   = unionTransition trans etrans
+deleteEpsilonTrans :: ENFA -> NFA -> StateNumber -> NFA
+deleteEpsilonTrans enfa nfa start
+    = if Map.member start (nfaTrans nfa)
+      then nfa
+      else foldl (deleteEpsilonTrans enfa) (NFA (nfaInit nfa) transAcc' acceptAcc') dest
+    where etrans     = collectEpsilonTrans enfa start
+          accept     = head $ Set.toList (nfaAccept enfa)
+          subtrans   = unionTransition enfa etrans
           dest       = concat $ Map.elems subtrans
           acceptAcc' = if accept `elem` etrans
-                       then Set.insert start acceptAcc
-                       else acceptAcc
+                       then Set.insert start (nfaAccept nfa)
+                       else (nfaAccept nfa)
           transAcc'  = if Map.null subtrans
-                       then transAcc
-                       else Map.insert start subtrans transAcc
+                       then (nfaTrans nfa)
+                       else Map.insert start subtrans (nfaTrans nfa)
 
 
-collectEpsilonTrans :: NFATrans -> StateNumber -> [StateNumber]
-collectEpsilonTrans trans start = loop start [start]
+collectEpsilonTrans :: ENFA -> StateNumber -> [StateNumber]
+collectEpsilonTrans enfa start = loop start [start]
     where 
       loop start' accum
           | onlydest == [] = accum
           | otherwise      = foldr (\x acc -> loop x acc) (accum ++ onlydest) onlydest
-          where map'      = Map.findWithDefault Map.empty start' trans 
+          where map'      = Map.findWithDefault Map.empty start' (nfaTrans enfa)
                 dest      = Map.findWithDefault [] Nothing map'
                 onlydest  = dest \\ accum
 
-unionTransition :: NFATrans -> [StateNumber] -> Map.Map (Maybe Char) [StateNumber]
-unionTransition trans states = Map.delete Nothing . Map.unionsWith union $ maps
+unionTransition :: NFA -> [StateNumber] -> Map.Map (Maybe Char) [StateNumber]
+unionTransition nfa states = Map.delete Nothing . Map.unionsWith union $ maps
     where lookup' trans k = Map.findWithDefault Map.empty k trans
-          maps            = map (lookup' trans) states
+          maps            = map (lookup' $ nfaTrans nfa) states
