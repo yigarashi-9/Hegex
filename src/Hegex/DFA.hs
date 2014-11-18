@@ -1,10 +1,10 @@
 
 module Hegex.DFA ( enfa2nfa, nfa2dfa, convert, simulate ) where
 
-import           Hegex.Type
 import           Data.List
 import qualified Data.Map   as Map
 import qualified Data.Set   as Set
+import           Hegex.Type
 
 simulate :: DFA -> String -> Bool
 simulate (DFA init trans accept) str = loop init str
@@ -13,13 +13,13 @@ simulate (DFA init trans accept) str = loop init str
       loop state (c:cs) = case Map.lookup (c, state) trans of
                              Just next -> loop next cs
                              Nothing   -> False
-
+                                                                                                 
 notExist :: StateNumber
 notExist = -1
 
 convert :: ENFA -> DFA
 convert = nfa2dfa . enfa2nfa
-
+          
 nfa2dfa :: NFA -> DFA
 nfa2dfa nfa = DFA { dfaInit   = 0,
                     dfaTrans  = dfamTrans dfaMakerRes,
@@ -38,25 +38,25 @@ getAcceptList nfa dfaMaker = Set.fromList [ i | (subset, i) <- subsetIndices, is
       isAccepted subset = not . Set.null $ Set.intersection (nfaAccept nfa) subset
                                            
 
-deleteNondetermin :: NFA -> DFAMaker -> [StateNumber]-> DFAMaker
-deleteNondetermin nfa dfaMaker starts
-    = foldl (deleteNondetermin nfa) dfaMaker' unsearched
+deleteNondetermin :: NFA -> DFAMaker -> StateSubset -> DFAMaker
+deleteNondetermin nfa dfaMaker start
+    = foldl (deleteNondetermin nfa) dfaMaker' (unsearched translist)
     where
-      translist  = Map.assocs $ unionTransition nfa starts
-      dfaMaker'  = connectAdjacent translist dfaMaker starts
-      unsearched = foldr filterfunc [] translist
+      translist    = Map.assocs $ unionTransition nfa start
+      dfaMaker'    = connectAdjacent translist dfaMaker start
+      unsearched l = foldr filterfunc [] l
       filterfunc (_, list) acc = if lookupFromlist dfaMaker list == notExist
                                  then (list:acc)
                                  else acc
 
-connectAdjacent :: [(Maybe Char, [StateNumber])] -> DFAMaker -> [StateNumber] -> DFAMaker
-connectAdjacent translist dfaMaker starts = foldl step dfaMaker translist
+connectAdjacent :: [(Maybe Char, StateSubset)] -> DFAMaker -> StateSubset -> DFAMaker
+connectAdjacent translist dfaMaker start = foldl step dfaMaker translist
     where
-      startNum  = lookupFromlist dfaMaker starts
+      startNum  = lookupFromlist dfaMaker start
       step (DFAMaker sets cnt dfaTrans) (Just c, dests)
           | num == notExist = (DFAMaker (Map.insert (Set.fromList dests) (cnt+1) sets)
-                                      (cnt+1)
-                                      (Map.insert (c, startNum) (cnt+1) dfaTrans))
+                                        (cnt+1)
+                                        (Map.insert (c, startNum) (cnt+1) dfaTrans))
           | otherwise       = (DFAMaker sets
                                         cnt
                                         (Map.insert (c, startNum) num dfaTrans))
