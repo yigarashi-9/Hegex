@@ -26,6 +26,7 @@ data NFA = NFA { nfaInit   :: StateNumber,
                } deriving(Eq, Show)
 
 type ENFA = NFA
+type ENFATrans = NFATrans
 
 type DFATrans = Map.Map (Char, StateNumber) StateNumber
 

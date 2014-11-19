@@ -2,9 +2,11 @@
 module Hegex.DFA ( enfa2nfa, nfa2dfa, convert, simulate ) where
 
 import           Data.List
+import           Data.Maybe
 import qualified Data.Map   as Map
 import qualified Data.Set   as Set
 import           Hegex.Type
+import           Control.Monad.Reader
 
 simulate :: DFA -> String -> Bool
 simulate (DFA init trans accept) str = loop init str
@@ -14,9 +16,6 @@ simulate (DFA init trans accept) str = loop init str
                              Just next -> loop next cs
                              Nothing   -> False
                                                                                                  
-notExist :: StateNumber
-notExist = -1
-
 convert :: ENFA -> DFA
 convert = nfa2dfa . enfa2nfa
           
@@ -28,7 +27,7 @@ nfa2dfa nfa = DFA { dfaInit   = 0,
       dfaMakerInit = DFAMaker { subsetIndexer = Map.singleton (Set.singleton $ nfaInit nfa) 0,
                                 dfamCounter   = 0,
                                 dfamTrans     = Map.empty }
-      dfaMakerRes  = deleteNondetermin nfa dfaMakerInit [nfaInit nfa]
+      dfaMakerRes  = runReader (deleteNondetermin dfaMakerInit [nfaInit nfa]) nfa
 
 
 getAcceptList :: NFA -> DFAMaker -> Accepts
@@ -38,66 +37,72 @@ getAcceptList nfa dfaMaker = Set.fromList [ i | (subset, i) <- subsetIndices, is
       isAccepted subset = not . Set.null $ Set.intersection (nfaAccept nfa) subset
                                            
 
-deleteNondetermin :: NFA -> DFAMaker -> StateSubset -> DFAMaker
-deleteNondetermin nfa dfaMaker start
-    = foldl (deleteNondetermin nfa) dfaMaker' (unsearched translist)
-    where
-      translist    = Map.assocs $ unionTransition nfa start
-      dfaMaker'    = connectAdjacent translist dfaMaker start
-      unsearched l = foldr filterfunc [] l
-      filterfunc (_, list) acc = if lookupFromlist dfaMaker list == notExist
-                                 then (list:acc)
-                                 else acc
+deleteNondetermin :: DFAMaker -> StateSubset -> Reader NFA DFAMaker
+deleteNondetermin dfaMaker start =
+    do
+      translist <- mapReader Map.assocs (unionTransitionFrom start)
+      let unsearched tl = foldr filterfunc [] (map snd tl)
+          filterfunc subset acc = case lookupSubsetIndex dfaMaker subset of
+                                    Just _  -> acc
+                                    Nothing -> subset:acc
+      dfaMaker' <- connectAdjacent dfaMaker start translist
+      foldM deleteNondetermin dfaMaker' (unsearched translist)
 
-connectAdjacent :: [(Maybe Char, StateSubset)] -> DFAMaker -> StateSubset -> DFAMaker
-connectAdjacent translist dfaMaker start = foldl step dfaMaker translist
-    where
-      startNum  = lookupFromlist dfaMaker start
-      step (DFAMaker sets cnt dfaTrans) (Just c, dests)
-          | num == notExist = (DFAMaker (Map.insert (Set.fromList dests) (cnt+1) sets)
-                                        (cnt+1)
-                                        (Map.insert (c, startNum) (cnt+1) dfaTrans))
-          | otherwise       = (DFAMaker sets
-                                        cnt
-                                        (Map.insert (c, startNum) num dfaTrans))
-          where num = lookupFromlist dfaMaker dests
+connectAdjacent :: DFAMaker -> StateSubset -> [(Maybe Char, StateSubset)] -> Reader NFA DFAMaker
+connectAdjacent dfaMaker start translist = do
+  let s = fromJust $ lookupSubsetIndex dfaMaker start
+  return $ foldl (connectFrom s) dfaMaker translist
+      
+connectFrom :: StateNumber -> DFAMaker -> (Maybe Char, StateSubset) -> DFAMaker
+connectFrom s (DFAMaker sets cnt dfaTrans) (Just c, dest)
+    = case Map.lookup (Set.fromList dest) sets of 
+        Just n  -> (DFAMaker sets cnt (Map.insert (c, s) n dfaTrans))
+        Nothing -> (DFAMaker (Map.insert (Set.fromList dest) (cnt+1) sets)
+                             (cnt+1)
+                             (Map.insert (c, s) (cnt+1) dfaTrans))
 
-lookupFromlist :: DFAMaker -> [StateNumber] -> StateNumber
-lookupFromlist dfaMaker state = Map.findWithDefault notExist
-                                                    (Set.fromList state)
-                                                    (subsetIndexer dfaMaker)
+lookupSubsetIndex :: DFAMaker -> [StateNumber] -> Maybe StateNumber
+lookupSubsetIndex dfaMaker state = Map.lookup (Set.fromList state) (subsetIndexer dfaMaker)
 
 enfa2nfa :: ENFA -> NFA
-enfa2nfa nfa = deleteEpsilonTrans nfa (NFA (nfaInit nfa) Map.empty Set.empty) (nfaInit nfa)
+enfa2nfa enfa = runReader (deleteEpsilonTrans initnfa (nfaInit enfa)) enfa
+    where initnfa = NFA { nfaInit   = nfaInit enfa,
+                          nfaTrans  = Map.empty,
+                          nfaAccept = Set.empty }
 
-deleteEpsilonTrans :: ENFA -> NFA -> StateNumber -> NFA
-deleteEpsilonTrans enfa nfa start
-    = if Map.member start (nfaTrans nfa)
-      then nfa
-      else foldl (deleteEpsilonTrans enfa) (NFA (nfaInit nfa) transAcc' acceptAcc') dest
-    where etrans     = collectEpsilonTrans enfa start
-          accept     = head $ Set.toList (nfaAccept enfa)
-          subtrans   = unionTransition enfa etrans
-          dest       = concat $ Map.elems subtrans
-          acceptAcc' = if accept `elem` etrans
-                       then Set.insert start (nfaAccept nfa)
-                       else (nfaAccept nfa)
-          transAcc'  = if Map.null subtrans
-                       then (nfaTrans nfa)
-                       else Map.insert start subtrans (nfaTrans nfa)
+deleteEpsilonTrans :: NFA -> StateNumber -> Reader ENFA NFA
+deleteEpsilonTrans nfa start = do
+  epstrans <- collectEpsilonTrans start
+  accept'  <- updateAccept nfa epstrans start  
+  subtrans <- unionTransitionFrom epstrans
+  let trans' = if Map.null subtrans
+               then (nfaTrans nfa)
+               else Map.insert start subtrans (nfaTrans nfa)
+  if Map.member start (nfaTrans nfa)
+  then return nfa
+  else foldM deleteEpsilonTrans (NFA (nfaInit nfa) trans' accept') (concat $ Map.elems subtrans)
 
+updateAccept :: NFA -> StateSubset -> StateNumber -> Reader ENFA Accepts
+updateAccept nfa epstrans start = do
+  accept <- reader $ head . Set.toList . nfaAccept
+  return $ if accept `elem` epstrans
+           then Set.insert start (nfaAccept nfa)
+           else nfaAccept nfa
 
-collectEpsilonTrans :: ENFA -> StateNumber -> [StateNumber]
-collectEpsilonTrans enfa start = loop start [start]
-    where 
-      loop start' accum
+collectEpsilonTrans :: StateNumber -> Reader ENFA StateSubset
+collectEpsilonTrans start = do
+  enfa <- ask
+  let loop start' accum
           | onlydest == [] = accum
           | otherwise      = foldr (\x acc -> loop x acc) (accum ++ onlydest) onlydest
           where map'      = Map.findWithDefault Map.empty start' (nfaTrans enfa)
                 dest      = Map.findWithDefault [] Nothing map'
                 onlydest  = dest \\ accum
+  return $ loop start [start]
 
-unionTransition :: NFA -> [StateNumber] -> Map.Map (Maybe Char) [StateNumber]
-unionTransition nfa states = Map.delete Nothing . Map.unionsWith union $ maps
-    where lookup' trans k = Map.findWithDefault Map.empty k trans
-          maps            = map (lookup' $ nfaTrans nfa) states
+unionTransitionFrom :: StateSubset -> Reader NFA (Map.Map (Maybe Char) [StateNumber])
+unionTransitionFrom states = do
+  nfa <- ask
+  let lookup' trans k = Map.findWithDefault Map.empty k trans
+      maps            = map (lookup' $ nfaTrans nfa) states
+  return $ Map.delete Nothing . Map.unionsWith union $ maps
