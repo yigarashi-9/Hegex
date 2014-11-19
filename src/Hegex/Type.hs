@@ -15,10 +15,9 @@ data Tree  = TCharacter (Maybe Char)
            | TConcat Tree Tree deriving(Show, Eq)
 
 type StateNumber = Int
-type NFATrans    = Map.Map StateNumber (Map.Map (Maybe Char) [StateNumber])
-type Accepts     = Set.Set StateNumber
-type Searcher    = (StateNumber, NFATrans)
-type Range       = (Int, Int)
+type StateSubset = Set.Set StateNumber
+type Accepts     = StateSubset
+type NFATrans    = Map.Map StateNumber (Map.Map (Maybe Char) StateSubset)
 
 data NFA = NFA { nfaInit   :: StateNumber,
                  nfaTrans  :: NFATrans,
@@ -29,16 +28,7 @@ type ENFA = NFA
 type ENFATrans = NFATrans
 
 type DFATrans = Map.Map (Char, StateNumber) StateNumber
-
 data DFA = DFA { dfaInit   :: StateNumber,
                  dfaTrans  :: DFATrans,
                  dfaAccept :: Accepts
                } deriving(Eq, Show)
-
-type SubsetIndexer = Map.Map (Set.Set StateNumber) StateNumber
-type StateSubset   = [StateNumber]
-
-data DFAMaker = DFAMaker { subsetIndexer :: SubsetIndexer,
-                           dfamCounter   :: StateNumber,
-                           dfamTrans     :: DFATrans
-                         } deriving(Eq, Show)
