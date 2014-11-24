@@ -3,7 +3,9 @@ module Hegex.Tree ( buildTree ) where
 
 import Hegex.Type
 
---新しい変数には'を使えば良いのでは
+type Pattern = String
+
+data Token = Character Char | Union | Star | LParen | RParen deriving(Show, Eq)
 
 buildTree :: Pattern -> Tree
 buildTree = analyze . tokenize
@@ -42,7 +44,15 @@ badParenthesis token = loop token 0
           | t == LParen = loop ts (n+1)
           | t == RParen = loop ts (n-1)
           | otherwise   = loop ts n
-                          
+
+-- Grammer rule quoted from 'http://codezine.jp/article/detail/3158?p=2'
+-- (A) expression -> subexpr EOF
+-- (B) subexpr -> seq '|' subexpr | seq
+-- (C) seq -> subseq | ''
+-- (D) subseq -> star subseq | star
+-- (E) star -> factor '*' | factor
+-- (F) factor -> '(' subexpr ')' | CHARACTER
+
 analyze :: [Token] -> Tree
 analyze ts 
     | badPattern ts     = error "Syntax error : Bad Pattern."

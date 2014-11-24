@@ -7,7 +7,12 @@ import qualified Data.Map            as Map
 import qualified Data.Set            as Set
 
 type Searcher = (StateNumber, NFATrans)
-type Range    = (Int, Int)
+-- The first operand is the global counter of state number and
+-- the second is a transition being updated.
+
+type BothEnds = (StateNumber, StateNumber)
+-- Both a start state and an end state are always a single state.
+-- To configure NFA, it is necessary to hold the StateNumber of both ends.
 
 assemble :: Tree -> ENFA
 assemble tree = NFA { nfaInit   = beg,
@@ -15,19 +20,19 @@ assemble tree = NFA { nfaInit   = beg,
                       nfaAccept = Set.singleton end }
     where ((beg, end), (_, trans)) = runState (branch tree) (0, Map.empty)
 
-branch :: Tree -> State Searcher Range
+branch :: Tree -> State Searcher BothEnds
 branch (TCharacter char) = assembleChar char
 branch (TConcat tr1 tr2) = assembleConcat tr1 tr2
 branch (TStar tr)        = assembleStar tr
 branch (TUnion tr1 tr2)  = assembleUnion tr1 tr2
 
-assembleChar :: Maybe Char -> State Searcher Range
+assembleChar :: Maybe Char -> State Searcher BothEnds
 assembleChar char = state connect
     where connect (maxN, trans) = ((beg, end), (end, insertArrow beg char end trans))
               where beg = maxN + 1
                     end = maxN + 2
 
-assembleConcat :: Tree -> Tree -> State Searcher Range
+assembleConcat :: Tree -> Tree -> State Searcher BothEnds
 assembleConcat tr1 tr2 = do
   (b1, e1) <- branch tr1
   (b2, e2) <- branch tr2
@@ -35,7 +40,7 @@ assembleConcat tr1 tr2 = do
   put (maxN, insertArrow e1 Nothing b2 trans)
   return (b1, e2)
   
-assembleStar :: Tree -> State Searcher Range
+assembleStar :: Tree -> State Searcher BothEnds
 assembleStar tr = do
   (b, e) <- branch tr
   (maxN, trans) <- get
@@ -48,7 +53,7 @@ assembleStar tr = do
   put(newEnd, newTrans)
   return (newBeg, newEnd)
                         
-assembleUnion :: Tree -> Tree -> State Searcher Range
+assembleUnion :: Tree -> Tree -> State Searcher BothEnds
 assembleUnion tr1 tr2 = do
   (b1, e1) <- branch tr1
   (b2, e2) <- branch tr2

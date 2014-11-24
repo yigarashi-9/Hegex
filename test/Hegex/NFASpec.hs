@@ -28,6 +28,3 @@ spec = do
                                                       (8,Map.fromList [(Nothing, Set.fromList [10])]),
                                                       (9,Map.fromList [(Nothing, Set.fromList [3,5])])],
                             nfaAccept = Set.fromList [10]}
-
-main :: IO ()
-main = hspec spec

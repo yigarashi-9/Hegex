@@ -4,11 +4,6 @@ module Hegex.Type where
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-type ErrMsg  = String
-type Pattern = String
-
-data Token = Character Char | Union | Star | LParen | RParen deriving(Show, Eq)
-
 data Tree  = TCharacter (Maybe Char)
            | TUnion Tree Tree
            | TStar Tree

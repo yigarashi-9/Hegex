@@ -27,6 +27,3 @@ spec = do
          it "convert 'a(bc))d'" $ do
             evaluate (buildTree "a(bc))d")
                       `shouldThrow` errorCall "Syntax error : Bad Parenthesis."
-
-main :: IO ()
-main = hspec spec
