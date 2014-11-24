@@ -4,58 +4,71 @@ module Hegex.NFA ( assemble ) where
 import           Hegex.Type
 import           Control.Monad.State
 import qualified Data.Map            as Map
+import qualified Data.Set            as Set
 
-insertArrows :: StateNumber -> Maybe Char -> [StateNumber] -> NFATrans -> NFATrans
-insertArrows begin char ends trans
-    | Nothing <- Map.lookup begin trans = Map.insert begin (Map.singleton char ends) trans
-    | otherwise = Map.update function begin trans
-    where function map' = Just $ Map.insertWith (++) char ends map'
+type Searcher = (StateNumber, NFATrans)
+-- The first operand is the global counter of state number and
+-- the second is a transition being updated.
 
-assemble :: Tree -> NFA
-assemble tree = NFA beg trans [end]
+type BothEnds = (StateNumber, StateNumber)
+-- Both a start state and an end state are always a single state.
+-- To configure NFA, it is necessary to hold the StateNumber of both ends.
+
+assemble :: Tree -> ENFA
+assemble tree = NFA { nfaInit   = beg,
+                      nfaTrans  = trans,
+                      nfaAccept = Set.singleton end }
     where ((beg, end), (_, trans)) = runState (branch tree) (0, Map.empty)
 
-branch :: Tree -> State Searcher Range
+branch :: Tree -> State Searcher BothEnds
 branch (TCharacter char) = assembleChar char
 branch (TConcat tr1 tr2) = assembleConcat tr1 tr2
 branch (TStar tr)        = assembleStar tr
 branch (TUnion tr1 tr2)  = assembleUnion tr1 tr2
 
-assembleChar :: Maybe Char -> State Searcher Range
+assembleChar :: Maybe Char -> State Searcher BothEnds
 assembleChar char = state connect
-    where connect (maxN, trans) = ((beg, end), (end, insertArrows beg char [end] trans))
+    where connect (maxN, trans) = ((beg, end), (end, insertArrow beg char end trans))
               where beg = maxN + 1
                     end = maxN + 2
 
-assembleConcat :: Tree -> Tree -> State Searcher Range
+assembleConcat :: Tree -> Tree -> State Searcher BothEnds
 assembleConcat tr1 tr2 = do
   (b1, e1) <- branch tr1
   (b2, e2) <- branch tr2
   (maxN, trans) <- get
-  put (maxN, insertArrows e1 Nothing [b2] trans)
+  put (maxN, insertArrow e1 Nothing b2 trans)
   return (b1, e2)
   
-assembleStar :: Tree -> State Searcher Range
+assembleStar :: Tree -> State Searcher BothEnds
 assembleStar tr = do
   (b, e) <- branch tr
   (maxN, trans) <- get
   let newBeg = (maxN+1)
       newEnd = (maxN+2)
-      newTrans = insertArrows newBeg Nothing [b, newEnd] .
-                 insertArrows e Nothing [newEnd] .
-                 insertArrows newEnd Nothing [newBeg] $ trans
+      newTrans = insertArrow newBeg Nothing b .
+                 insertArrow newBeg Nothing newEnd .
+                 insertArrow e Nothing newEnd .
+                 insertArrow newEnd Nothing newBeg $ trans
   put(newEnd, newTrans)
   return (newBeg, newEnd)
                         
-assembleUnion :: Tree -> Tree -> State Searcher Range
+assembleUnion :: Tree -> Tree -> State Searcher BothEnds
 assembleUnion tr1 tr2 = do
   (b1, e1) <- branch tr1
   (b2, e2) <- branch tr2
   (maxN, trans) <- get
   let newBeg = (maxN+1)
       newEnd = (maxN+2)
-      newTrans = insertArrows newBeg Nothing [b1, b2] .
-                 insertArrows e1 Nothing [newEnd] .
-                 insertArrows e2 Nothing [newEnd] $ trans
+      newTrans = insertArrow newBeg Nothing b1 .
+                 insertArrow newBeg Nothing b2 .
+                 insertArrow e1 Nothing newEnd .
+                 insertArrow e2 Nothing newEnd $ trans
   put (newEnd, newTrans)
   return (newBeg, newEnd)
+
+insertArrow :: StateNumber -> Maybe Char -> StateNumber -> NFATrans -> NFATrans
+insertArrow begin char end trans
+    | Map.member begin trans = Map.adjust (Map.insertWith Set.union char end') begin trans
+    | otherwise              = Map.insert begin (Map.singleton char end') trans
+    where end' = Set.singleton end
