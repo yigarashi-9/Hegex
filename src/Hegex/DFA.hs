@@ -121,6 +121,6 @@ findEpsTransFrom start = do
 unionTransitionsFrom :: StateSubset -> Reader NFA (Map.Map (Maybe Char) StateSubset)
 unionTransitionsFrom states = do
   nfa <- ask
-  let unionTransMap s acc = Map.unionWith Set.union acc . lookUp (nfaTrans nfa) $ s
-      lookUp trans k      = Map.findWithDefault Map.empty k trans
+  let unionTransMap s acc = Map.unionWith Set.union acc $
+                            Map.findWithDefault Map.empty s (nfaTrans nfa)
   return $ Map.delete Nothing $ Set.foldr unionTransMap Map.empty states
