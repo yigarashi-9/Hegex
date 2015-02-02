@@ -1,5 +1,5 @@
 
-module Hegex.Tree ( buildTree ) where
+module Hegex.Tree ( Pattern, buildTree ) where
 
 import Hegex.Type
 
@@ -32,7 +32,7 @@ badPattern (_:ts)   = loop ts
           | (t1, t2) `elem` badpat = True
           | otherwise              = loop (t2:rest)
           where badpat = [(Star, Star), (Union, Star), (Union, Union), (LParen, Star)]
-          
+
 
 badParenthesis :: [Token] -> Bool
 badParenthesis token = loop token 0
@@ -54,12 +54,12 @@ badParenthesis token = loop token 0
 -- (F) factor -> '(' subexpr ')' | CHARACTER
 
 analyze :: [Token] -> Tree
-analyze ts 
+analyze ts
     | badPattern ts     = error "Syntax error : Bad Pattern."
     | badParenthesis ts = error "Syntax error : Bad Parenthesis."
     | otherwise         = tree
     where (tree, _)     = subexpression ts
-                    
+
 subexpression :: [Token] -> (Tree, [Token])
 subexpression ts = loop sequ rest
     where (sequ, rest) = parseSubexp ts

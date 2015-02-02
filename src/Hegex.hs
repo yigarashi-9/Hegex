@@ -1,5 +1,5 @@
 
-module Hegex where 
+module Hegex where
 
 import Hegex.Type
 import Hegex.Tree
@@ -12,10 +12,10 @@ makeTree = buildTree
 
 makeENFA :: Pattern -> ENFA
 makeENFA = assemble . makeTree
-         
+
 makeNFA :: Pattern -> NFA
 makeNFA = enfa2nfa . makeENFA
-         
+
 makeDFA :: Pattern -> DFA
 makeDFA = nfa2dfa . makeNFA
 
